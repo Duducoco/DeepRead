@@ -36,7 +36,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 1. 克隆或下载项目
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Duducoco/DeepRead.git
 cd DeepRead
 ```
 
@@ -161,6 +161,7 @@ uv run python main.py --input document.pdf --style concise
 
 支持的总结风格:
 <!-- - `concise` - 简洁模式: 3-5段简要总结 -->
+
 - `detailed` - 详细模式: 全面深入的分析(默认)
 <!-- - `bullet` - 要点模式: 分层级的要点列表 -->
 <!-- - `academic` - 学术模式: 符合学术规范的总结 -->
@@ -244,13 +245,7 @@ DeepRead的处理流程:
 uv run python main.py --input research_paper.pdf --style detailed
 ```
 
-### 示例2: 总结单个PDF并自定义输出路径
-
-```bash
-uv run python main.py --input document.pdf --output my_summary.md
-```
-
-### 示例3: 使用自定义提示词
+### 示例2: 使用自定义提示词
 
 ```bash
 uv run python main.py --input article.pdf --prompt "请用5个要点总结这个文档的关键内容"
@@ -456,7 +451,3 @@ MIT License
 ## 联系方式
 
 如有问题或建议,请通过GitHub Issues联系。
-
----
-
-**享受智能文档总结的便利!** 🚀
