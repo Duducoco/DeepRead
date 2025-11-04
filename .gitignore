@@ -55,5 +55,5 @@ output/
 !README.md
 !pyproject.toml
 
-
+!prompts/*.md
 !examples/example.pdf
