@@ -25,6 +25,11 @@ class Config:
     ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL")  # 可选,用于中转API
     CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
 
+    # OpenAI配置
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")  # 可选,用于中转API
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
+
     # Gitee配置
     GITEE_ACCESS_TOKEN = os.getenv("GITEE_ACCESS_TOKEN")
     GITEE_OWNER = os.getenv("GITEE_OWNER")
@@ -46,8 +51,9 @@ class Config:
         if not cls.MINERU_API_KEY:
             errors.append("MINERU_API_KEY未设置")
 
-        if not cls.ANTHROPIC_API_KEY:
-            errors.append("ANTHROPIC_API_KEY未设置")
+        # 至少需要配置一个LLM API
+        if not cls.ANTHROPIC_API_KEY and not cls.OPENAI_API_KEY:
+            errors.append("ANTHROPIC_API_KEY 和 OPENAI_API_KEY 至少需要设置一个")
 
         if not cls.GITEE_ACCESS_TOKEN:
             errors.append("GITEE_ACCESS_TOKEN未设置")
@@ -77,6 +83,11 @@ class Config:
             else "Not Set",
             "ANTHROPIC_BASE_URL": cls.ANTHROPIC_BASE_URL or "Default (https://api.anthropic.com)",
             "CLAUDE_MODEL": cls.CLAUDE_MODEL,
+            "OPENAI_API_KEY": "***" + cls.OPENAI_API_KEY[-4:]
+            if cls.OPENAI_API_KEY
+            else "Not Set",
+            "OPENAI_BASE_URL": cls.OPENAI_BASE_URL or "Default (https://api.openai.com)",
+            "OPENAI_MODEL": cls.OPENAI_MODEL,
             "GITEE_ACCESS_TOKEN": "***" + cls.GITEE_ACCESS_TOKEN[-4:]
             if cls.GITEE_ACCESS_TOKEN
             else "Not Set",

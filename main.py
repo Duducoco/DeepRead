@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DeepRead - PDF智能总结工具
-使用MinerU解析PDF,然后用Claude生成总结
+使用MinerU解析PDF,然后用LLM(Claude或OpenAI)生成总结
 """
 
 import argparse
@@ -21,6 +21,9 @@ def parse_args():
   # 处理单个PDF文件(完整流程)
   python main.py --input document.pdf
 
+  # 使用OpenAI引擎
+  python main.py --input document.pdf --engine openai
+
   # 单步操作 - 解析PDF(自动上传Gitee,解析,下载结果)
   python main.py --step parse --input document.pdf
 
@@ -33,6 +36,11 @@ def parse_args():
   # 使用自定义提示词
   python main.py --input document.pdf --prompt "请用5个要点总结这个文档"
 
+LLM引擎说明:
+  claude - 使用Anthropic Claude模型(默认)
+  openai - 使用OpenAI GPT模型
+  如果不指定,将自动选择已配置的引擎
+
 总结风格说明:
   detailed - 详细模式: 全面深入的分析(默认)
 
@@ -43,11 +51,18 @@ def parse_args():
     )
 
     parser.add_argument(
-        "-i", "--input", required=True, metavar="FILE", help="输入文件路径(PDF或Markdown)"
+        "-i", "--input", metavar="FILE", help="输入文件路径(PDF或Markdown)"
     )
 
     parser.add_argument(
         "-s", "--style", choices=["detailed"], default="detailed", help="总结风格(默认: detailed)"
+    )
+
+    parser.add_argument(
+        "-e",
+        "--engine",
+        choices=["claude", "openai"],
+        help="指定LLM引擎(默认: 自动选择可用的引擎)",
     )
 
     parser.add_argument("-p", "--prompt", metavar="TEXT", help="自定义总结提示词(将覆盖预设风格)")
@@ -111,6 +126,12 @@ def main():
     if args.config:
         show_config()
         return 0
+
+    # 如果不是显示配置，则必须提供输入文件
+    if not args.input:
+        print("错误: 需要提供输入文件 (-i/--input)", file=sys.stderr)
+        print("使用 --help 查看帮助信息", file=sys.stderr)
+        return 1
 
     # 验证配置
     try:
@@ -188,6 +209,10 @@ def handle_step_mode(args) -> int:
             "style": args.style,
             "custom_prompt": args.prompt,
         }
+        # 如果指定了引擎,传递给context
+        if args.engine:
+            context["llm_engine"] = args.engine
+
         result = pipeline.run(context)
 
         print("\n✓ 总结完成!")
@@ -232,6 +257,10 @@ def handle_full_mode(args) -> int:
     else:
         print(f"不支持的文件类型: {input_path.suffix}", file=sys.stderr)
         return 1
+
+    # 如果指定了引擎,传递给context
+    if args.engine:
+        context["llm_engine"] = args.engine
 
     # 运行Pipeline
     try:

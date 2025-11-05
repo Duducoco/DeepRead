@@ -13,6 +13,7 @@ from typing import Any, Dict
 
 import requests
 from anthropic import Anthropic
+from openai import OpenAI
 from tqdm import tqdm
 
 from config import config
@@ -57,8 +58,7 @@ class PDFUploadStep(PipelineStep):
         file_ext = pdf_path.suffix
 
         # 使用SHA值作为文件名
-        now = datetime.now()
-        gitee_path = f"{config.GITEE_UPLOAD_PATH}/{now.year}/{now.month:02d}/{file_sha}{file_ext}"
+        gitee_path = f"{config.GITEE_UPLOAD_PATH}/{file_sha}{file_ext}"
 
         print(f"  - 文件SHA: {file_sha}")
 
@@ -87,7 +87,7 @@ class PDFUploadStep(PipelineStep):
                     gitee_pdf_url = file_info["html_url"]
                     gitee_pdf_raw_url = file_info["download_url"]
 
-                    print(f"  ✓ 文件已存在,复用已有文件")
+                    print("  ✓ 文件已存在,复用已有文件")
                     print(f"  - PDF URL: {gitee_pdf_url}")
                     print(f"  - Raw URL: {gitee_pdf_raw_url}")
 
@@ -118,7 +118,7 @@ class PDFUploadStep(PipelineStep):
         gitee_pdf_url = result["content"]["html_url"]
         gitee_pdf_raw_url = result["content"]["download_url"]
 
-        print(f"  ✓ 文件上传成功")
+        print("  ✓ 文件上传成功")
         print(f"  - PDF URL: {gitee_pdf_url}")
         print(f"  - Raw URL: {gitee_pdf_raw_url}")
 
@@ -368,16 +368,18 @@ class SummaryGenerateStep(PipelineStep):
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        使用Claude生成总结
+        使用LLM生成总结(自动选择可用的引擎)
 
         需要的context字段:
             - markdown_content: Markdown内容
             - style: 总结风格(可选,默认为'detailed')
             - custom_prompt: 自定义提示词(可选)
+            - llm_engine: 指定LLM引擎(可选,'claude'或'openai',不指定则自动选择)
 
         返回的结果:
             - summary: 总结内容
             - summary_length: 总结长度
+            - llm_engine: 使用的LLM引擎
         """
         markdown_content = context.get("markdown_content")
         if not markdown_content:
@@ -386,55 +388,45 @@ class SummaryGenerateStep(PipelineStep):
         style = context.get("style", "detailed")
         custom_prompt = context.get("custom_prompt")
 
+        # 确定使用哪个引擎
+        engine = context.get("llm_engine")
+        if not engine:
+            # 自动选择:优先使用Claude
+            if config.ANTHROPIC_API_KEY:
+                engine = "claude"
+            elif config.OPENAI_API_KEY:
+                engine = "openai"
+            else:
+                raise ValueError("没有可用的LLM API配置")
+
         # 构建提示词
         if custom_prompt:
             system_prompt = custom_prompt
         else:
             system_prompt = self._get_style_prompt(style)
 
-        print(f"  - 使用模型: {config.CLAUDE_MODEL}")
+        print(f"  - 使用引擎: {engine}")
         print(f"  - 总结风格: {style}")
 
-        # 初始化Claude客户端
-        if config.ANTHROPIC_BASE_URL:
-            client = Anthropic(api_key=config.ANTHROPIC_API_KEY, base_url=config.ANTHROPIC_BASE_URL)
-        else:
-            client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
-
-        # 调用API
+        # 根据引擎调用相应的API
         try:
-            summary_parts = []
-
-            with client.messages.stream(
-                model=config.CLAUDE_MODEL,
-                max_tokens=30000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": markdown_content}],
-            ) as stream:
-                length = 0
-                with tqdm(desc="生成中", unit="字符") as pbar:
-                    for text in stream.text_stream:
-                        summary_parts.append(text)
-                        length = length + len(text)
-                        pbar.update(len(text))
-
-                # for text in stream.text_stream:
-                #     summary_parts.append(text)
-                #     length = length + len(text)
-                #     print(f"已生成{length}字符.", end="", flush=True)
-
-            print()  # 换行
-            summary = "".join(summary_parts)
+            if engine == "claude":
+                summary = self._generate_with_claude(markdown_content, system_prompt)
+            elif engine == "openai":
+                summary = self._generate_with_openai(markdown_content, system_prompt)
+            else:
+                raise ValueError(f"不支持的LLM引擎: {engine}")
 
             print(f"  - 总结长度: {len(summary)} 字符")
 
             return {
                 "summary": summary,
                 "summary_length": len(summary),
+                "llm_engine": engine,
             }
 
         except Exception as e:
-            raise ValueError(f"Claude API调用失败: {e}")
+            raise ValueError(f"{engine.upper()} API调用失败: {e}")
 
     def _get_style_prompt(self, style: str) -> str:
         """获取总结风格对应的提示词"""
@@ -469,6 +461,68 @@ class SummaryGenerateStep(PipelineStep):
    - 实用建议(如果适用)
 
 请开始分析:"""
+
+    def _generate_with_claude(self, content: str, system_prompt: str) -> str:
+        """使用Claude生成总结"""
+        print(f"  - 使用模型: {config.CLAUDE_MODEL}")
+
+        # 初始化Claude客户端
+        if config.ANTHROPIC_BASE_URL:
+            client = Anthropic(api_key=config.ANTHROPIC_API_KEY, base_url=config.ANTHROPIC_BASE_URL)
+        else:
+            client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+
+        # 调用API
+        summary_parts = []
+
+        with client.messages.stream(
+            model=config.CLAUDE_MODEL,
+            max_tokens=30000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": content}],
+        ) as stream:
+            with tqdm(desc="生成中", unit="字符") as pbar:
+                for text in stream.text_stream:
+                    summary_parts.append(text)
+                    pbar.update(len(text))
+
+        print()  # 换行
+        return "".join(summary_parts)
+
+    def _generate_with_openai(self, content: str, system_prompt: str) -> str:
+        """使用OpenAI生成总结"""
+        print(f"  - 使用模型: {config.OPENAI_MODEL}")
+
+        # 初始化OpenAI客户端
+        if config.OPENAI_BASE_URL:
+            client = OpenAI(api_key=config.OPENAI_API_KEY, base_url=config.OPENAI_BASE_URL)
+        else:
+            client = OpenAI(api_key=config.OPENAI_API_KEY)
+
+        # 调用API (使用流式响应)
+        summary_parts = []
+
+        stream = client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content},
+            ],
+            stream=True,
+        )
+
+        with tqdm(desc="生成中", unit="字符") as pbar:
+            for chunk in stream:
+                # 检查 chunk 是否有 choices 并且不为空
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if delta.content is not None:
+                        text = delta.content
+                        summary_parts.append(text)
+                        pbar.update(len(text))
+
+        print()  # 换行
+        return "".join(summary_parts)
 
 
 class SaveSummaryStep(PipelineStep):

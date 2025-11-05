@@ -1,12 +1,13 @@
 # DeepRead - PDF智能总结工具
 
-一个强大的PDF智能分析工具,使用Gitee存储PDF,MinerU的API解析PDF为markdown,然后调用Claude大模型生成高质量的文档总结。
+一个强大的PDF智能分析工具,使用Gitee存储PDF,MinerU的API解析PDF为markdown,然后调用大模型(支持Claude和OpenAI)生成高质量的文档总结。
 
 ## 功能特点
 
 - **Gitee云存储**: 自动将PDF上传到Gitee仓库,永久保存并可分享
 - **高精度PDF解析**: 使用MinerU云服务解析PDF,支持复杂文档结构，自动下载并解压解析结果
-- **智能AI总结**: 集成Anthropic Claude,提供多种总结风格
+- **多引擎支持**: 支持 Anthropic Claude 和 OpenAI GPT 两种大模型引擎
+- **智能AI总结**: 提供多种总结风格，自动选择可用引擎
 
 ## 系统要求
 
@@ -14,7 +15,9 @@
 - [uv](https://github.com/astral-sh/uv) - 快速的Python包管理器
 - Gitee账号和访问令牌 (从 [gitee.com](https://gitee.com) 获取)
 - MinerU API密钥 (从 [mineru.net](https://mineru.net) 获取)
-- Anthropic API密钥 (从 [anthropic.com](https://www.anthropic.com) 获取)
+- **至少一个**大模型API密钥:
+  - Anthropic API密钥 (从 [anthropic.com](https://www.anthropic.com) 获取)
+  - 或 OpenAI API密钥 (从 [openai.com](https://platform.openai.com) 获取)
 
 ## 安装步骤
 
@@ -68,7 +71,7 @@ GITEE_UPLOAD_PATH=pdfs/
 MINERU_API_KEY=your_mineru_api_key_here
 MINERU_API_URL=https://mineru.net/api/v4/extract/task
 
-# Anthropic Claude API配置
+# Anthropic Claude API配置(至少需要配置Claude或OpenAI之一)
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # 可选: Claude中转API地址(如果使用中转API)
@@ -77,6 +80,16 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # 可选: 模型配置
 CLAUDE_MODEL=claude-3-5-sonnet-20241022
+
+# OpenAI API配置(至少需要配置Claude或OpenAI之一)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# 可选: OpenAI中转API地址(如果使用中转API)
+# 如果使用官方API,注释掉或删除此行
+# OPENAI_BASE_URL=https://your-proxy-api.com/v1
+
+# 可选: OpenAI模型配置
+OPENAI_MODEL=gpt-4o
 ```
 
 ### 配置说明
@@ -101,12 +114,34 @@ CLAUDE_MODEL=claude-3-5-sonnet-20241022
 - `GITEE_BRANCH`: 分支名(默认master)
 - `GITEE_UPLOAD_PATH`: PDF存储路径前缀(默认pdfs/)
 
-#### 2. MinerU和Claude配置
+#### 2. MinerU和大模型配置
 
-按照原有说明配置MinerU和Claude的API密钥。
+**MinerU API:**
+按照原有说明配置MinerU的API密钥。
+
+**大模型引擎选择:**
+DeepRead支持两种大模型引擎,你只需配置其中一个即可:
+
+1. **Anthropic Claude** (推荐)
+   - 擅长长文本理解和总结
+   - 输出质量高、格式规范
+   - 在`.env`中设置`ANTHROPIC_API_KEY`
+
+2. **OpenAI GPT**
+   - 广泛使用的大模型
+   - 响应速度快
+   - 在`.env`中设置`OPENAI_API_KEY`
+
+**自动引擎选择:**
+- 如果只配置了一个引擎,将自动使用该引擎
+- 如果配置了多个引擎,默认优先使用Claude
+- 可以通过`--engine`参数手动指定使用的引擎
 
 **关于中转API:**
-如果你在国内访问Claude API遇到困难,可以使用中转API服务。只需在`.env`文件中设置`ANTHROPIC_BASE_URL`为你的中转API地址即可。
+如果你在国内访问官方API遇到困难,可以使用中转API服务:
+- 设置`ANTHROPIC_BASE_URL`使用Claude中转API
+- 设置`OPENAI_BASE_URL`使用OpenAI中转API
+- 确保中转服务与官方API兼容
 
 ## 使用方法
 
@@ -117,6 +152,12 @@ CLAUDE_MODEL=claude-3-5-sonnet-20241022
 ```bash
 # 直接使用uv run(推荐,无需激活虚拟环境)
 uv run python main.py --input document.pdf
+
+# 指定使用OpenAI引擎
+uv run python main.py --input document.pdf --engine openai
+
+# 指定使用Claude引擎
+uv run python main.py --input document.pdf --engine claude
 
 # 或者激活虚拟环境后运行
 # Windows
@@ -384,10 +425,15 @@ GITEE_UPLOAD_PATH=pdfs/          # 可选,默认pdfs/
 MINERU_API_KEY=your_key          # 必需
 MINERU_API_URL=https://mineru.net/api/v4/extract/task  # 可选,默认值已设置
 
-# Claude配置
-ANTHROPIC_API_KEY=your_key       # 必需
+# Claude配置(与OpenAI至少配置一个)
+ANTHROPIC_API_KEY=your_key       # Claude API密钥
 ANTHROPIC_BASE_URL=https://...   # 可选,用于中转API
 CLAUDE_MODEL=claude-3-5-sonnet-20241022  # 可选
+
+# OpenAI配置(与Claude至少配置一个)
+OPENAI_API_KEY=your_key          # OpenAI API密钥
+OPENAI_BASE_URL=https://...      # 可选,用于中转API
+OPENAI_MODEL=gpt-4o              # 可选
 
 # 性能配置
 REQUEST_TIMEOUT=300              # 请求超时(秒)
@@ -407,7 +453,8 @@ from pipeline import create_full_pipeline, create_summary_only_pipeline
 pipeline = create_full_pipeline()
 context = {
     "pdf_path": "document.pdf",
-    "style": "detailed"  # 可选,默认为detailed
+    "style": "detailed",          # 可选,默认为detailed
+    "llm_engine": "openai"        # 可选,指定使用OpenAI引擎
 }
 result = pipeline.run(context)
 print(f"总结已保存到: {result['output_path']}")
@@ -416,7 +463,8 @@ print(f"总结已保存到: {result['output_path']}")
 pipeline = create_summary_only_pipeline()
 context = {
     "markdown_path": "document.md",
-    "style": "detailed"
+    "style": "detailed",
+    "llm_engine": "claude"        # 可选,指定使用Claude引擎
 }
 result = pipeline.run(context)
 print(f"总结已保存到: {result['output_path']}")
