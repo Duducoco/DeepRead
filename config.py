@@ -28,7 +28,7 @@ class Config:
     # Gitee配置
     GITEE_ACCESS_TOKEN = os.getenv("GITEE_ACCESS_TOKEN")
     GITEE_OWNER = os.getenv("GITEE_OWNER")
-    GITEE_REPO = os.getenv("GITEE_REPO")
+    GITEE_REPO = os.getenv("GITEE_REPO").lower()
     GITEE_BRANCH = os.getenv("GITEE_BRANCH", "master")
     GITEE_UPLOAD_PATH = os.getenv("GITEE_UPLOAD_PATH", "pdfs/")
 

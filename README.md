@@ -7,9 +7,6 @@
 - **Gitee云存储**: 自动将PDF上传到Gitee仓库,永久保存并可分享
 - **高精度PDF解析**: 使用MinerU云服务解析PDF,支持复杂文档结构，自动下载并解压解析结果
 - **智能AI总结**: 集成Anthropic Claude,提供多种总结风格
-- **灵活配置**: 使用dotenv管理API密钥,安全便捷
-- **命令行友好**: 简洁的CLI界面,易于使用和自动化
-- **Markdown总结**: 支持直接对markdown文件进行智能总结
 
 ## 系统要求
 
@@ -45,25 +42,9 @@ cd DeepRead
 ```bash
 # 创建虚拟环境并安装依赖(一步完成)
 uv sync
-
-# 或者分步操作:
-# 创建虚拟环境
-uv venv
-
-# 激活虚拟环境
-# Windows
-.venv\Scripts\activate
-
-# macOS/Linux
-source .venv/bin/activate
-
-# 安装依赖
-uv pip install -e .
 ```
 
 ### 3. 配置API密钥
-
-复制`.env.example`为`.env`:
 
 ```bash
 # Windows
@@ -73,7 +54,7 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-然后编辑`.env`文件,填入你的API密钥:
+编辑`.env`文件,填入你的API密钥:
 
 ```env
 # Gitee配置(PDF存储)
@@ -110,7 +91,7 @@ CLAUDE_MODEL=claude-3-5-sonnet-20241022
 
 **创建存储仓库:**
 1. 在Gitee创建一个新仓库(如: `pdf-storage`)
-2. 仓库需要设置为**公开**或确保MinerU能访问
+2. 仓库需要设置为**公开**
 3. 将仓库名和用户名填入`.env`文件
 
 **参数说明:**
@@ -147,16 +128,10 @@ source .venv/bin/activate
 python main.py --input document.pdf
 ```
 
-### 指定输出文件
-
-```bash
-uv run python main.py --input document.pdf --output summary.md
-```
-
 ### 选择总结风格
 
 ```bash
-uv run python main.py --input document.pdf --style concise
+uv run python main.py --input document.pdf --style detailed
 ```
 
 支持的总结风格:
@@ -169,7 +144,7 @@ uv run python main.py --input document.pdf --style concise
 
 ### 保存原始Markdown
 
-MinerU解析的原始markdown文件会自动保存在解压后的文件夹中（`output/时间戳_文件名/full.md`）。
+MinerU解析的原始markdown文件会自动保存在output的文件夹中（`output/时间戳_文件名/full.md`）。
 
 ### 自定义提示词
 
@@ -198,27 +173,53 @@ DeepRead/
 ├── uv.lock                # 依赖锁定文件(uv自动生成)
 ├── README.md              # 项目文档(本文件)
 ├── config.py              # 配置管理模块
-├── gitee_client.py        # Gitee API客户端
-├── mineru_client.py       # MinerU API客户端
-├── llm_client.py          # Claude API客户端
-├── summarizer.py          # PDF处理核心逻辑
-├── md_summarizer.py       # Markdown总结模块
 ├── main.py                # 命令行入口
+├── pipeline/              # Pipeline处理模块
+│   ├── __init__.py        # 模块导出
+│   ├── base.py            # Pipeline基类定义
+│   ├── steps.py           # 各个处理步骤(上传/解析/总结)
+│   ├── manager.py         # Pipeline管理器
+│   ├── factory.py         # Pipeline工厂函数
+│   └── README.md          # Pipeline模块文档
+├── prompts/               # 提示词模板目录
+│   └── detailed.md        # 详细总结提示词模板
+├── examples/              # 示例PDF文件目录
+│   ├── example.pdf        # 示例PDF文件
+│   └── ...                # 其他示例文件
 └── output/                # 默认输出目录
-    └── 时间戳_文件名/     # 解压后的文件夹
-        ├── full.md        # 解析的完整markdown
-        └── ...            # 其他解析结果文件
+    └── 时间戳_文件名/     # 解析后的文件夹
+        ├── full.md        # MinerU解析的完整markdown
+        ├── summary.md     # AI生成的智能总结
+        └── ...            # 其他解析结果文件(图片、表格等)
 ```
 
 ## 工作流程
 
-DeepRead的处理流程:
+DeepRead采用**Pipeline架构**,处理流程清晰可扩展:
 
-1. **上传PDF到Gitee**: 将本地PDF文件上传到Gitee仓库,获取可访问的URL
-2. **MinerU解析**: 使用Gitee的raw URL调用MinerU API解析PDF为markdown
+### Pipeline架构说明
+
+DeepRead使用模块化的Pipeline设计,每个处理步骤都是独立的类:
+
+- **PipelineStep基类**: 定义统一的步骤接口
+- **Pipeline管理器**: 串联多个步骤,管理执行流程
+- **工厂函数**: 提供预定义的Pipeline配置
+
+### 完整处理流程
+
+1. **上传PDF到Gitee** (`PDFUploadStep`): 将本地PDF文件上传到Gitee仓库,获取可访问的URL
+2. **MinerU解析** (`MinerUParseStep`): 使用Gitee的raw URL调用MinerU API解析PDF为markdown
 3. **下载解析结果**: 自动下载解析结果的ZIP包并解压到 `output/时间戳_文件名/` 目录
-4. **Claude总结**: 将markdown内容传递给Claude生成智能总结
-5. **保存结果**: 保存总结文件到 `output/文件名_summary.md`
+4. **生成总结** (`SummaryGenerateStep`): 将markdown内容传递给Claude生成智能总结
+5. **保存结果** (`SaveSummaryStep`): 保存总结文件到 `output/时间戳_文件名/summary.md`
+
+### 可选流程
+
+如果已有markdown文件,可以跳过解析步骤,直接生成总结:
+
+1. **读取Markdown** (`MarkdownGenerateStep`): 从本地读取markdown文件
+2. **生成总结** (`SummaryGenerateStep`): 调用Claude生成总结
+3. **保存结果** (`SaveSummaryStep`): 保存总结到指定位置
 
 ## 输出文件
 
@@ -230,25 +231,40 @@ DeepRead的处理流程:
 - 其他解析相关文件（图片、表格等）
 
 ### 2. 总结文件
-`output/PDF文件名_summary.md` - AI生成的智能总结
-
-总结文件包含：
-- 文档元信息（原文件名、生成时间等）
-- AI生成的总结内容
-- 格式化的markdown排版
+`output/时间戳_文件名/summary.md` - AI生成的智能总结
 
 ## 使用示例
 
-### 示例1: 快速总结学术论文
+DeepRead提供了一些示例PDF文件供您测试(位于 `examples/` 目录):
+
+### 示例1: 快速测试工具
 
 ```bash
-uv run python main.py --input research_paper.pdf --style detailed
+# 使用examples目录中的示例文件测试
+uv run python main.py --input examples/example.pdf --style detailed
 ```
 
-### 示例2: 使用自定义提示词
+### 示例2: 处理学术论文
 
 ```bash
-uv run python main.py --input article.pdf --prompt "请用5个要点总结这个文档的关键内容"
+# 处理学术论文并生成详细总结
+uv run python main.py --input examples/BugGen.pdf --style detailed
+```
+
+### 示例3: 使用自定义提示词
+
+```bash
+uv run python main.py --input examples/example.pdf --prompt "请用5个要点总结这个文档的关键内容"
+```
+
+### 示例4: 处理您自己的PDF
+
+```bash
+# 使用相对路径
+uv run python main.py --input path/to/your/document.pdf
+
+# 使用绝对路径
+uv run python main.py --input D:\Documents\research.pdf
 ```
 
 ## API说明
@@ -267,7 +283,7 @@ Gitee是国内领先的代码托管平台,DeepRead使用Gitee存储PDF文件:
 3. 复制令牌到`.env`文件
 
 **目录组织:**
-PDF文件默认按日期组织: `pdfs/2024/01/filename_timestamp.pdf`
+PDF文件默认按日期组织: `pdfs/2024/01/{sha of file}.pdf`
 
 ### MinerU API
 
@@ -320,7 +336,6 @@ Claude是Anthropic开发的大语言模型,特点:
 1. 检查Gitee仓库是否存在
 2. 确认仓库名和用户名拼写正确
 3. 验证访问令牌是否有效
-4. 检查文件是否已存在(文件名冲突)
 
 ### 问题: "配置错误: MINERU_API_KEY未设置"
 
@@ -381,57 +396,81 @@ MAX_RETRIES=3                    # 最大重试次数
 
 ### 作为Python模块使用
 
-你也可以在自己的Python代码中使用DeepRead:
+你也可以在自己的Python代码中使用DeepRead Pipeline:
+
+#### 1. 使用预定义的Pipeline
 
 ```python
-from summarizer import PDFSummarizer
-from md_summarizer import MarkdownSummarizer
+from pipeline import create_full_pipeline, create_summary_only_pipeline
 
-# 处理PDF文件
-pdf_summarizer = PDFSummarizer()
-result = pdf_summarizer.process(
-    pdf_path='document.pdf',
-    style='detailed'
-)
+# 完整流程: PDF → Gitee → MinerU → 总结
+pipeline = create_full_pipeline()
+context = {
+    "pdf_path": "document.pdf",
+    "style": "detailed"  # 可选,默认为detailed
+}
+result = pipeline.run(context)
 print(f"总结已保存到: {result['output_path']}")
 
-# 处理Markdown文件
-md_summarizer = MarkdownSummarizer()
-result = md_summarizer.summarize_file(
-    input_md_path='document.md',
-    style='detailed'
-)
+# 只生成总结: Markdown → 总结
+pipeline = create_summary_only_pipeline()
+context = {
+    "markdown_path": "document.md",
+    "style": "detailed"
+}
+result = pipeline.run(context)
 print(f"总结已保存到: {result['output_path']}")
 ```
 
-### 使用uv的优势
+#### 2. 创建自定义Pipeline
 
-**为什么使用uv?**
+```python
+from pipeline import (
+    Pipeline,
+    PDFUploadStep,
+    MinerUParseStep,
+    SummaryGenerateStep,
+    SaveSummaryStep
+)
 
-- **极快的速度**: 比pip快10-100倍
-- **可靠的依赖解析**: 自动生成lockfile确保环境一致性
-- **简单的命令**: `uv sync`一步完成环境创建和依赖安装
-- **无需激活**: `uv run`可直接运行,无需手动激活虚拟环境
-- **更好的缓存**: 智能缓存机制减少重复下载
+# 创建自定义Pipeline
+pipeline = Pipeline("自定义处理流程")
+pipeline.add_step(PDFUploadStep())        # 上传PDF到Gitee
+pipeline.add_step(MinerUParseStep())      # 使用MinerU解析
+pipeline.add_step(SummaryGenerateStep())  # 生成总结
+pipeline.add_step(SaveSummaryStep())      # 保存结果
 
-**常用uv命令:**
-
-```bash
-# 安装新依赖
-uv add package-name
-
-# 安装开发依赖
-uv add --dev pytest
-
-# 更新依赖
-uv sync --upgrade
-
-# 运行脚本(无需激活环境)
-uv run python main.py
-
-# 运行任意命令
-uv run pytest
+# 运行Pipeline
+context = {"pdf_path": "document.pdf", "style": "detailed"}
+result = pipeline.run(context)
+print(f"处理完成: {result['output_path']}")
 ```
+
+#### 3. 单独使用某个步骤
+
+```python
+from pipeline import PDFUploadStep, MinerUParseStep
+
+# 只上传PDF到Gitee
+upload_step = PDFUploadStep()
+context = {"pdf_path": "document.pdf"}
+result = upload_step.execute(context)
+print(f"PDF已上传: {result['gitee_pdf_url']}")
+
+# 只解析PDF(需要提供URL)
+parse_step = MinerUParseStep()
+context = {"pdf_url": "https://..."}
+result = parse_step.execute(context)
+print(f"解析完成: {result['markdown_content']}")
+```
+
+#### 4. 可用的Pipeline步骤
+
+- `PDFUploadStep`: 上传PDF到Gitee
+- `MinerUParseStep`: 使用MinerU解析PDF
+- `MarkdownGenerateStep`: 从本地读取Markdown文件
+- `SummaryGenerateStep`: 使用Claude生成总结
+- `SaveSummaryStep`: 保存总结到文件
 
 ## 注意事项
 
