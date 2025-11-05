@@ -1,6 +1,6 @@
 # DeepRead - PDF智能总结工具
 
-一个强大的PDF智能分析工具,使用Gitee存储PDF,MinerU的API解析PDF为markdown,然后调用大模型(支持Claude和OpenAI)生成高质量的文档总结。
+一个强大的PDF智能分析工具,使用Gitee存储PDF,MinerU的API解析PDF为markdown,然后调用大模型生成高质量的文档总结。支持 **Anthropic Claude** 和 **OpenAI GPT** 两种引擎，可根据需求灵活选择。
 
 ## 功能特点
 
@@ -79,7 +79,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # ANTHROPIC_BASE_URL=https://your-proxy-api.com/v1
 
 # 可选: 模型配置
-CLAUDE_MODEL=claude-3-5-sonnet-20241022
+CLAUDE_MODEL=claude-3-5-sonnet
 
 # OpenAI API配置(至少需要配置Claude或OpenAI之一)
 OPENAI_API_KEY=your_openai_api_key_here
@@ -89,7 +89,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 # OPENAI_BASE_URL=https://your-proxy-api.com/v1
 
 # 可选: OpenAI模型配置
-OPENAI_MODEL=gpt-4o
+OPENAI_MODEL=gpt-5
 ```
 
 ### 配置说明
@@ -123,13 +123,9 @@ OPENAI_MODEL=gpt-4o
 DeepRead支持两种大模型引擎,你只需配置其中一个即可:
 
 1. **Anthropic Claude** (推荐)
-   - 擅长长文本理解和总结
-   - 输出质量高、格式规范
    - 在`.env`中设置`ANTHROPIC_API_KEY`
 
 2. **OpenAI GPT**
-   - 广泛使用的大模型
-   - 响应速度快
    - 在`.env`中设置`OPENAI_API_KEY`
 
 **自动引擎选择:**
@@ -158,15 +154,6 @@ uv run python main.py --input document.pdf --engine openai
 
 # 指定使用Claude引擎
 uv run python main.py --input document.pdf --engine claude
-
-# 或者激活虚拟环境后运行
-# Windows
-.venv\Scripts\activate
-python main.py --input document.pdf
-
-# macOS/Linux
-source .venv/bin/activate
-python main.py --input document.pdf
 ```
 
 ### 选择总结风格
@@ -312,19 +299,13 @@ uv run python main.py --input D:\Documents\research.pdf
 
 ### Gitee API
 
-Gitee是国内领先的代码托管平台,DeepRead使用Gitee存储PDF文件:
-- **云端存储**: PDF文件永久保存在Gitee仓库
-- **可访问性**: 生成公开的raw URL供MinerU访问
-- **版本控制**: 自动管理文件版本和历史记录
-- **便于分享**: 可以通过Gitee链接分享PDF文件
-
 **获取访问令牌:**
 1. 访问 [Gitee设置](https://gitee.com/profile/personal_access_tokens)
 2. 生成新令牌,勾选 `projects` 权限
 3. 复制令牌到`.env`文件
 
 **目录组织:**
-PDF文件默认按日期组织: `pdfs/2024/01/{sha of file}.pdf`
+PDF文件默认按日期组织: `pdfs/{sha of file}.pdf`
 
 ### MinerU API
 
@@ -346,21 +327,24 @@ MinerU是一个强大的文档解析工具,能够:
 
 ### Anthropic Claude API
 
-Claude是Anthropic开发的大语言模型,特点:
-- 擅长长文本理解和总结
-- 输出质量高、格式规范
-- 支持中英文等多种语言
-
 获取API密钥: [https://console.anthropic.com](https://console.anthropic.com)
 
+### OpenAI API
+
+获取API密钥: [https://platform.openai.com](https://platform.openai.com)
+
 **使用中转API:**
-如果你在国内无法直接访问Anthropic官方API,可以使用中转API服务:
+如果你在国内无法直接访问官方API,可以使用中转API服务:
+
+**Claude 中转API:**
 1. 在`.env`文件中设置`ANTHROPIC_BASE_URL`
 2. 填入你的中转API服务地址(如: `https://api.example.com/v1`)
 3. 确保中转服务与Anthropic官方API兼容
-4. 使用中转API时,仍需要有效的`ANTHROPIC_API_KEY`
 
-常见中转API服务包括各种OpenAI兼容的API代理服务。
+**OpenAI 中转API:**
+1. 在`.env`文件中设置`OPENAI_BASE_URL`
+2. 填入你的中转API服务地址(如: `https://api.example.com/v1`)
+3. 确保中转服务与OpenAI官方API兼容
 
 ## 故障排除
 
@@ -404,10 +388,24 @@ REQUEST_TIMEOUT=600  # 增加到10分钟
 ### 问题: 使用中转API时连接失败
 
 **解决方案**:
-1. 确认`ANTHROPIC_BASE_URL`格式正确,通常以`/v1`结尾
+1. 确认`ANTHROPIC_BASE_URL`或`OPENAI_BASE_URL`格式正确,通常以`/v1`结尾
 2. 检查中转API服务是否正常运行
-3. 确认中转API的认证方式与Anthropic官方API兼容
+3. 确认中转API的认证方式与官方API兼容
 4. 尝试使用`--verbose`参数查看详细错误信息
+
+### 问题: 如何选择使用 Claude 还是 OpenAI？
+
+**解决方案**:
+- 如果只配置了一个引擎,程序会自动使用已配置的引擎
+- 如果配置了两个引擎,默认优先使用 Claude
+- 可以使用 `--engine` 参数手动指定:
+  ```bash
+  # 使用 Claude 引擎
+  uv run python main.py --input document.pdf --engine claude
+
+  # 使用 OpenAI 引擎
+  uv run python main.py --input document.pdf --engine openai
+  ```
 
 ## 高级配置
 
@@ -522,10 +520,11 @@ print(f"解析完成: {result['markdown_content']}")
 
 ## 注意事项
 
-1. **API费用**: 使用MinerU和Claude API都可能产生费用,请注意控制使用量
+1. **API费用**: 使用MinerU、Claude API 和 OpenAI API 都可能产生费用,请注意控制使用量
 2. **数据隐私**: 上传到API的PDF内容会被发送到第三方服务器,请注意数据安全
 3. **文件大小**: 过大的PDF文件可能导致处理时间较长或超时
 4. **语言支持**: 工具支持多种语言,但总结质量可能因语言而异
+5. **引擎选择**: Claude 更擅长长文本理解和结构化输出，OpenAI 响应速度更快，可根据需求选择
 
 ## 贡献
 
