@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # 加载.env文件
 env_path = Path(__file__).parent / ".env"
-load_dotenv(dotenv_path=env_path)
+load_dotenv(dotenv_path=env_path,override=True)
 
 
 class Config:
